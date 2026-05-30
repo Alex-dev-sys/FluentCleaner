@@ -1,10 +1,8 @@
-using FluentCleaner.Models;
+﻿using FluentCleaner.Models;
 using System.Text;
 
 namespace FluentCleaner.Services;
 
-//Handles /AUTO and /AUTO /SHUTDOWN command-line flags for silent cleaning without UI interaction.
-// Called from App.OnLaunched when the flag is detected; writes a detailed log and exits
 public static class SilentRunner
 {
     private static readonly string LogFile = Path.Combine(
@@ -25,9 +23,7 @@ public static class SilentRunner
         foreach (var p in paths)
             allEntries.AddRange(await parser.ParseFileAsync(p));
 
-        allEntries = allEntries
-            .DistinctBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        allEntries = allEntries.DistinctBy(e => e.Name, StringComparer.OrdinalIgnoreCase).ToList();
 
         var saved    = AppSettings.Instance.SelectedEntries;
         var selected = allEntries
@@ -35,9 +31,9 @@ public static class SilentRunner
             .Where(e => saved.Count > 0 ? saved.Contains(e.Name) : e.Default)
             .ToList();
 
-        var log          = new StringBuilder();
-        int  totalItems  = 0;
-        long totalBytes  = 0;
+        var log         = new StringBuilder();
+        int  totalItems = 0;
+        long totalBytes = 0;
 
         log.AppendLine($"[{DateTime.Now:yyyy-MM-dd HH:mm}]  FluentCleaner /AUTO{(shutdown ? " /SHUTDOWN" : "")}");
         log.AppendLine(new string('─', 60));
@@ -45,8 +41,7 @@ public static class SilentRunner
         foreach (var entry in selected)
         {
             var result = await cleaner.AnalyzeAsync(entry);
-
-            if (result.FilesToDelete.Count == 0 && result.RegistryToDelete.Count == 0)
+            if (result.FilesToDelete.Count == 0 && result.RegistryToDelete.Count == 0 && result.ThreatFiles.Count == 0)
                 continue;
 
             var (count, bytes) = await cleaner.CleanAsync(result);
@@ -55,13 +50,16 @@ public static class SilentRunner
 
             log.AppendLine();
             log.AppendLine(entry.Name);
-
             foreach (var file in result.FilesToDelete)
                 log.AppendLine($"  {file}");
-
             foreach (var reg in result.RegistryToDelete)
                 log.AppendLine($"  {reg}");
-
+            if (result.ThreatFiles.Count > 0)
+            {
+                log.AppendLine($"  [QUARANTINED — {result.ThreatFiles.Count} threat(s)]");
+                foreach (var threat in result.ThreatFiles)
+                    log.AppendLine($"  ⚠ {threat}");
+            }
             log.AppendLine($"  → {count} items · {ScanResult.FormatBytes(bytes)}");
         }
 
@@ -79,32 +77,30 @@ public static class SilentRunner
         Microsoft.UI.Xaml.Application.Current.Exit();
     }
 
-    // Runs post-clean commands from settings, if enabled
     private static async Task RunPostCleanTasksAsync()
     {
         if (!AppSettings.Instance.PostCleanEnabled) return;
-
         var lines = AppSettings.Instance.PostCleanCommands
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
         foreach (var line in lines)
         {
             try
             {
-                using var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName        = "cmd.exe",
-                    Arguments       = $"/c {line}",
                     UseShellExecute = false,
-                    CreateNoWindow  = true
-                });
+                    CreateNoWindow  = true,
+                };
+                psi.ArgumentList.Add("/c");
+                psi.ArgumentList.Add(line);
+                using var p = System.Diagnostics.Process.Start(psi);
                 if (p is not null) await p.WaitForExitAsync();
             }
             catch { }
         }
     }
 
-    // Writes the log to a file
     private static async Task WriteLogAsync(string content)
     {
         try
