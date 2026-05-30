@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace FluentCleaner.Services;
@@ -49,6 +49,10 @@ public class AppSettings
 
     // Groq API key for AI entry explanations; null = not configured
     public string? GroqApiKey { get; set; }
+
+    // AMSI malware scan during analysis; off by default to avoid slowdowns on large databases.
+    // When enabled, executable/script files are checked against the installed AV before deletion.
+    public bool AmsiScanEnabled { get; set; } = false;
 
 
     // -----------------------------------------------------------------------
@@ -116,3 +120,4 @@ public class AppSettings
         return string.IsNullOrWhiteSpace(result) ? null : result;
     }
 }
+

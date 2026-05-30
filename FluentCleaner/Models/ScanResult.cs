@@ -1,4 +1,4 @@
-namespace FluentCleaner.Models;
+﻿namespace FluentCleaner.Models;
 
 /* One ScanResult per entry always. "Analyze All" just creates a list of these.
    After scanning, im passing it straight into CleaningService.Clean to delete everything. */
@@ -6,6 +6,7 @@ public class ScanResult
 {
     public CleanerEntry Entry { get; set; } = null!;                        // The entry that was analyzed; used after cleaning for REMOVESELF logic.
     public List<string> FilesToDelete { get; set; } = new();                // Absolute file paths collected during analysis that are safe to delete.
+    public List<string> ThreatFiles   { get; set; } = new();                // Files flagged by AMSI — quarantined, not deleted.
     public List<RegistryItemToDelete> RegistryToDelete { get; set; } = new(); // Registry keys/values collected during analysis that are safe to delete.
     public long TotalBytes { get; set; }                                    // Sum of file sizes at scan time, updated incrementally as files are found.
     public string FormattedSize => FormatBytes(TotalBytes);                 // Just the human-readable size string (e.g. "1.2 MB") derived from TotalBytes.
@@ -28,5 +29,6 @@ public class RegistryItemToDelete
     public bool IsDeleteKey => ValueName == null;   // True when the whole key (not just a value) is targeted for deletion.
 
     public override string ToString() =>
-        ValueName != null ? $"{KeyPath} → {ValueName}" : KeyPath;
+        ValueName != null ? $"{KeyPath} в†’ {ValueName}" : KeyPath;
 }
+
