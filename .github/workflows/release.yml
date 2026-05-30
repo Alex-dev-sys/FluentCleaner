@@ -1,0 +1,63 @@
+﻿name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [x64, arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Windows App SDK workload
+        run: dotnet workload install windows
+
+      - name: Publish (${{ matrix.arch }})
+        run: |
+          dotnet publish FluentCleaner/FluentCleaner.csproj `
+            -c Release `
+            -r win-${{ matrix.arch }} `
+            --self-contained true `
+            -p:Platform=${{ matrix.arch }} `
+            -o publish/${{ matrix.arch }}
+
+      - name: Zip
+        run: |
+          Compress-Archive `
+            -Path publish/${{ matrix.arch }}/* `
+            -DestinationPath FluentCleaner-${{ github.ref_name }}-win-${{ matrix.arch }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FluentCleaner-win-${{ matrix.arch }}
+          path: FluentCleaner-${{ github.ref_name }}-win-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "*.zip"
+          generate_release_notes: true
